@@ -298,6 +298,58 @@ h1 { font-size: 1.2rem; font-weight: 600; margin: 0; }
 }
 .modal-btn-ok { background: var(--normal-color); color: #000; }
 .modal-btn-cancel { background: var(--btn-bg); color: #fff; }
+
+@media (max-width: 768px) {
+  .container {
+    padding: 8px;
+    gap: 8px;
+  }
+  header h1 {
+    font-size: 1.2rem;
+  }
+  .system-selector {
+    flex-wrap: wrap;
+  }
+  .system-option {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+  .racing-card {
+    padding: 5px;
+    height: auto;
+  }
+  .lane {
+    height: 70px;
+    min-height: 70px;
+  }
+  .ship-wrapper {
+    transform: translate(-50%, -50%) scale(0.65);
+    transform-origin: center;
+  }
+  .bottom-panel {
+    gap: 6px;
+  }
+  .card {
+    padding: 6px;
+  }
+  .gauges-super-panel {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .telegraph-btn {
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+  .btn-override, .btn-alarm-action {
+    padding: 6px;
+    font-size: 0.85rem;
+  }
+  .info-table {
+    margin-top: 5px;
+    padding-top: 5px;
+    font-size: 0.75rem;
+  }
+}
 </style>
 </head>
 <body>
@@ -1018,10 +1070,11 @@ function updateUI() {
   document.getElementById('infoStopTimeUnl').innerText = stateUnl.stopTimeSec ? stateUnl.stopTimeSec.toFixed(1) + " s" : (stateUnl.sog > 0.1 ? (appState.elapsedSec||0).toFixed(1) + " s" : "0.0 s");
   
   // YATAY YARIŞ PİSTİ ANİMASYONLARI
-  const pixelsPerShipLength = 15; // Görsel katsayı
+  const isMobile = window.innerWidth <= 768;
+  const pixelsPerShipLength = isMobile ? 10 : 15; // Görsel katsayı
 
   function calculateBandTransform(vessel) {
-    return `translate(calc(-50% + ${vessel.visualOffsetShipLengths * pixelsPerShipLength}px), -50%)`;
+    return `translate(calc(-50% + ${vessel.visualOffsetShipLengths * pixelsPerShipLength}px), -50%) ${isMobile ? 'scale(0.65)' : ''}`;
   }
 
   function getDirectionClass(speedKts) {
