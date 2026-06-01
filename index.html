@@ -376,6 +376,7 @@ h1 { font-size: 1.2rem; font-weight: 600; margin: 0; }
     <div class="card left-controls">
       <div class="card-title">Hız & Telgraf Kontrolü</div>
       <div class="btn-group">
+        <button class="btn" id="btn-init-ASTERN" onclick="setInitialState('ASTERN')">Geri yol (-1 kt)</button>
         <button class="btn active" id="btn-init-STOP" onclick="setInitialState('STOP')">Stop (0 kt)</button>
         <button class="btn" id="btn-init-AHEAD_10" onclick="setInitialState('AHEAD_10')">İleri yol (+10 kt)</button>
       </div>
@@ -519,6 +520,7 @@ const CONFIG = {
   ],
 
   initialStates: [
+    { key: "ASTERN", label: "Geri yol (-1 kt)", initialRPM: -10, initialSOG: -1 },
     { key: "STOP", label: "Stop (0 kt)", initialRPM: 0, initialSOG: 0 },
     { key: "AHEAD_10", label: "İleri yol (+10 kt)", initialRPM: 100, initialSOG: 10 }
   ],
@@ -571,7 +573,7 @@ function setSystem(type) {
 }
 
 function setInitialState(key) {
-  document.querySelectorAll('#btn-init-STOP, #btn-init-AHEAD_10').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#btn-init-ASTERN, #btn-init-STOP, #btn-init-AHEAD_10').forEach(el => el.classList.remove('active'));
   document.getElementById('btn-init-' + key).classList.add('active');
   
   const st = CONFIG.initialStates.find(s => s.key === key);
