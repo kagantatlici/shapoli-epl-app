@@ -376,9 +376,8 @@ h1 { font-size: 1.2rem; font-weight: 600; margin: 0; }
     <div class="card left-controls">
       <div class="card-title">Hız & Telgraf Kontrolü</div>
       <div class="btn-group">
-        <button class="btn" id="btn-init-ASTERN" onclick="setInitialState('ASTERN')">Geri yol (-1 kt)</button>
         <button class="btn active" id="btn-init-STOP" onclick="setInitialState('STOP')">Stop (0 kt)</button>
-        <button class="btn" id="btn-init-AHEAD" onclick="setInitialState('AHEAD')">İleri yol (+5 kt)</button>
+        <button class="btn" id="btn-init-AHEAD_10" onclick="setInitialState('AHEAD_10')">İleri yol (+10 kt)</button>
       </div>
       <div class="telegraph-container" id="telegraphPanel">
         <!-- JS ile doldurulacak -->
@@ -434,10 +433,10 @@ h1 { font-size: 1.2rem; font-weight: 600; margin: 0; }
           <div class="info-table">
             <div class="info-row"><span>Shaft Power</span><strong id="infoShaftPwrLim">0 kW</strong></div>
             <div class="info-row"><span>Demand Power</span><strong id="infoDemandPwrLim">0 kW</strong></div>
-            <div class="info-row"><span>Power Limit</span><strong id="infoLimitPwrLim">12450 kW</strong></div>
-            <div class="info-row"><span>Torque Demand</span><strong id="infoTorqDemandLim">0%</strong></div>
             <div class="info-row"><span>Torque Avail</span><strong id="infoTorqAvailLim">100%</strong></div>
             <div class="info-row"><span>Power Deficit</span><strong id="infoPwrDeficitLim">0 kW</strong></div>
+            <div class="info-row" style="margin-top:5px; border-top:1px solid rgba(255,255,255,0.1); padding-top:5px;"><span>Stopping Dist.</span><strong id="infoStopDistLim" style="color:var(--alarm-color)">0 m</strong></div>
+            <div class="info-row"><span>Stopping Time</span><strong id="infoStopTimeLim">0 s</strong></div>
           </div>
         </div>
 
@@ -466,9 +465,10 @@ h1 { font-size: 1.2rem; font-weight: 600; margin: 0; }
             <div class="info-row"><span>Shaft Power</span><strong id="infoShaftPwrUnl" style="color:#778da9">0 kW</strong></div>
             <div class="info-row"><span>Demand Power</span><strong id="infoDemandPwrUnl" style="color:#778da9">0 kW</strong></div>
             <div class="info-row"><span>Power Limit</span><strong style="color:#778da9">Yok</strong></div>
-            <div class="info-row"><span>Torque Demand</span><strong id="infoTorqDemandUnl" style="color:#778da9">0%</strong></div>
-            <div class="info-row"><span>Torque Avail</span><strong style="color:#778da9">100%</strong></div>
+            <div class="info-row"><span>Torque Avail</span><strong id="infoTorqAvailUnl" style="color:#778da9">100%</strong></div>
             <div class="info-row"><span>Power Deficit</span><strong style="color:#778da9">0 kW</strong></div>
+            <div class="info-row" style="margin-top:5px; border-top:1px solid rgba(255,255,255,0.1); padding-top:5px;"><span>Stopping Dist.</span><strong id="infoStopDistUnl" style="color:#778da9">0 m</strong></div>
+            <div class="info-row"><span>Stopping Time</span><strong id="infoStopTimeUnl" style="color:#778da9">0 s</strong></div>
           </div>
         </div>
 
@@ -482,6 +482,13 @@ h1 { font-size: 1.2rem; font-weight: 600; margin: 0; }
 const CONFIG = {
   originalMaxRPM: 120, // 120 RPM -> 12 knots
   maxPowerKW: 15000,
+  
+  machinery: {
+    aheadMaxRPM: 120,
+    asternMaxRPM: 80,
+    asternPowerFactor: 0.65,
+    asternTorqueFactor: 0.65
+  },
   
   limiter: {
     maxRPM: 100,
@@ -500,17 +507,20 @@ const CONFIG = {
   },
 
   telegraph: [
-    { key: "STOP", label: "Stop", rpm: 0, index: 0 },
-    { key: "DEAD_SLOW", label: "Pek Ağır", rpm: 30, index: 1 }, 
-    { key: "SLOW", label: "Ağır", rpm: 55, index: 2 },
-    { key: "HALF", label: "Yarım", rpm: 85, index: 3 },
-    { key: "FULL", label: "Tam İleri", rpm: 120, index: 4 }
+    { key: "FULL_ASTERN", label: "Tam Yol Tornistan", rpm: -80, index: -4, mode: "ASTERN" },
+    { key: "HALF_ASTERN", label: "Yarım Yol Tornistan", rpm: -60, index: -3, mode: "ASTERN" },
+    { key: "SLOW_ASTERN", label: "Ağır Tornistan", rpm: -40, index: -2, mode: "ASTERN" },
+    { key: "DEAD_SLOW_ASTERN", label: "Pek Ağır Tornistan", rpm: -25, index: -1, mode: "ASTERN" },
+    { key: "STOP", label: "Stop", rpm: 0, index: 0, mode: "STOP" },
+    { key: "DEAD_SLOW", label: "Pek Ağır İleri", rpm: 30, index: 1, mode: "AHEAD" }, 
+    { key: "SLOW", label: "Ağır İleri", rpm: 55, index: 2, mode: "AHEAD" },
+    { key: "HALF", label: "Yarım İleri", rpm: 85, index: 3, mode: "AHEAD" },
+    { key: "FULL", label: "Tam İleri", rpm: 120, index: 4, mode: "AHEAD" }
   ],
 
   initialStates: [
-    { key: "ASTERN", label: "Geri yol (-1 kt)", initialRPM: -10, initialSOG: -1 },
     { key: "STOP", label: "Stop (0 kt)", initialRPM: 0, initialSOG: 0 },
-    { key: "AHEAD", label: "İleri yol (+5 kt)", initialRPM: 50, initialSOG: 5 }
+    { key: "AHEAD_10", label: "İleri yol (+10 kt)", initialRPM: 100, initialSOG: 10 }
   ],
 };
 
@@ -543,6 +553,9 @@ class ShipModel {
     this.torqueDemand = 0;
     this.torqueAvail = 1;
     this.limiterActive = false;
+    this.distanceTravelledM = 0;
+    this.stopTimeSec = null;
+    this.hasStopped = false;
   }
 }
 
@@ -558,12 +571,15 @@ function setSystem(type) {
 }
 
 function setInitialState(key) {
-  document.querySelectorAll('#btn-init-ASTERN, #btn-init-STOP, #btn-init-AHEAD').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#btn-init-STOP, #btn-init-AHEAD_10').forEach(el => el.classList.remove('active'));
   document.getElementById('btn-init-' + key).classList.add('active');
   
   const st = CONFIG.initialStates.find(s => s.key === key);
   stateLim.reset(st.initialRPM, st.initialSOG);
   stateUnl.reset(st.initialRPM, st.initialSOG);
+  
+  stateLim.hasStopped = (st.initialSOG <= 0.1);
+  stateUnl.hasStopped = (st.initialSOG <= 0.1);
   
   appState.telegraphKeyLim = "STOP";
   appState.telegraphKeyUnl = "STOP";
@@ -572,6 +588,7 @@ function setInitialState(key) {
   appState.alarmActive = false;
   appState.pendingDecision = false;
   appState.distanceGap = 0;
+  appState.elapsedSec = 0;
   
   document.getElementById('btnOverride').disabled = false;
   renderTelegraph();
@@ -587,6 +604,8 @@ function resetScenario() {
   appState.pendingDecision = false;
   appState.distanceGap = 0;
   stateUnl.reset(stateLim.actualRPM, stateLim.sog);
+  stateUnl.distanceTravelledM = stateLim.distanceTravelledM;
+  stateUnl.hasStopped = stateLim.hasStopped;
   document.getElementById('btnOverride').disabled = false;
   updateOverrideUI();
 }
@@ -596,8 +615,19 @@ function setTelegraph(key) {
   appState.telegraphKeyUnl = key;
   renderTelegraph();
   
-  const lbl = CONFIG.telegraph.find(t => t.key === key).label;
-  logEvent(`Telgraf Komutu verildi: ${lbl}`, "normal");
+  const cmd = CONFIG.telegraph.find(t => t.key === key);
+  logEvent(`Telgraf Komutu verildi: ${cmd.label}`, "normal");
+  
+  if (cmd.mode === "ASTERN" && stateLim.sog > 0.5) {
+      if (appState.systemType === "MECHANICAL") {
+          logEvent("Tam yol tornistan talebi limit üzerinde; mekanik EPL tornistan torkunu da sınırladığı için durma mesafesi uzuyor.", "warn");
+      } else if (appState.systemType === "CLOSED_LOOP") {
+          logEvent("Tam yol tornistan talebi limit üzerinde; kapalı devre sistem tornistan gücünü sınırladığı için durma mesafesi uzuyor.", "warn");
+      } else {
+          logEvent("Tam yol tornistan talebi limit üzerinde; otomatik kısıtlama yok, operatör manuel olarak gücü düşürmeli.", "alert");
+      }
+  }
+
   updateOverrideUI();
 }
 
@@ -679,62 +709,92 @@ function getOverrideDelay() {
   return 0;
 }
 
-function getAllowedTorqueFactor(isLimited) {
-  if (!isLimited) return 1.0;
-  if (appState.overrideActive) return 1.0;
-  return CONFIG.limiter.torqueLimitFactor;
+function getBaseTorqueCapacityByDirection(requestedTargetRPM) {
+  if (requestedTargetRPM < 0) return CONFIG.machinery.asternTorqueFactor;
+  if (requestedTargetRPM > 0) return 1.0;
+  return 0.0;
+}
+
+function getAllowedTorqueFactor(isLimited, requestedTargetRPM) {
+  const baseCapacity = getBaseTorqueCapacityByDirection(requestedTargetRPM);
+  if (!isLimited) return baseCapacity;
+  if (appState.overrideActive) return baseCapacity;
+  return baseCapacity * CONFIG.limiter.torqueLimitFactor;
 }
 
 function calculateTorqueDemand(model, requestedTargetRPM) {
-  const rpmDiff = Math.max(0, requestedTargetRPM - model.actualRPM);
-  const accelDemand = rpmDiff / CONFIG.originalMaxRPM;
+  if (requestedTargetRPM === 0) return 0;
 
-  const lowSpeedPenalty = Math.max(0, 1 - Math.abs(model.sog) / 6);
-  const asternPenalty = model.sog < -0.2 ? 0.20 : 0.00;
-  const inertiaDemand = lowSpeedPenalty * 0.35 + asternPenalty;
+  const rpmDiff = Math.abs(requestedTargetRPM - model.actualRPM);
+  const rpmDemand = rpmDiff / CONFIG.originalMaxRPM;
 
-  const baseDemand = Math.pow(Math.max(0, requestedTargetRPM) / CONFIG.originalMaxRPM, 2);
+  const targetMagnitude = Math.abs(requestedTargetRPM) / CONFIG.originalMaxRPM;
+  const baseDemand = Math.pow(targetMagnitude, 2);
 
-  return Math.min(1.5, baseDemand + accelDemand + inertiaDemand);
+  const isAsternCommand = requestedTargetRPM < 0;
+  const vesselStillAhead = model.sog > 0.2;
+
+  let inertiaDemand = 0;
+  if (isAsternCommand && vesselStillAhead) {
+    inertiaDemand = Math.min(0.60, model.sog / 10 * 0.60);
+  } else {
+    const lowSpeedPenalty = Math.max(0, 1 - Math.abs(model.sog) / 6);
+    inertiaDemand = lowSpeedPenalty * 0.35;
+  }
+
+  return Math.min(1.5, baseDemand + rpmDemand + inertiaDemand);
 }
 
 function calculateEffectiveTargetRPM(model, requestedTargetRPM, isLimited) {
   if (!isLimited) return requestedTargetRPM;
-
   if (appState.overrideActive) return requestedTargetRPM;
+  if (!hasAutomaticLimiter()) return requestedTargetRPM;
 
-  if (hasAutomaticLimiter()) {
+  if (requestedTargetRPM > 0) {
     return Math.min(requestedTargetRPM, CONFIG.limiter.maxRPM);
   }
-
-  return requestedTargetRPM;
+  if (requestedTargetRPM < 0) {
+    return Math.max(requestedTargetRPM, -CONFIG.machinery.asternMaxRPM);
+  }
+  return 0;
 }
 
 function calculateRpmRate(model, requestedTargetRPM, effectiveTargetRPM, isLimited) {
   const rpmDiff = effectiveTargetRPM - model.actualRPM;
-
-  if (rpmDiff <= 0) {
-    return CONFIG.phys.rpmFallNormal;
-  }
+  if (rpmDiff === 0) return 0;
 
   const torqueDemand = calculateTorqueDemand(model, requestedTargetRPM);
-  const allowedTorque = getAllowedTorqueFactor(isLimited);
+  const allowedTorque = getAllowedTorqueFactor(isLimited, requestedTargetRPM);
 
   model.torqueDemand = torqueDemand;
   model.torqueAvail = allowedTorque;
   model.limiterActive = false;
 
-  if (isLimited && hasAutomaticLimiter() && !appState.overrideActive && torqueDemand > allowedTorque) {
+  if (
+    isLimited &&
+    hasAutomaticLimiter() &&
+    !appState.overrideActive &&
+    requestedTargetRPM !== 0 &&
+    torqueDemand > allowedTorque
+  ) {
     model.limiterActive = true;
     return CONFIG.phys.rpmRiseNormal * allowedTorque / torqueDemand;
   }
 
-  return CONFIG.phys.rpmRiseNormal;
+  if (rpmDiff > 0) return CONFIG.phys.rpmRiseNormal;
+  return CONFIG.phys.rpmFallNormal;
 }
 
 function checkStandaloneAlarm(model, requestedTargetRPM) {
+  if (requestedTargetRPM === 0) {
+    model.torqueDemand = 0;
+    model.torqueAvail = 0;
+    model.limiterActive = false;
+    return false;
+  }
+
   const torqueDemand = calculateTorqueDemand(model, requestedTargetRPM);
-  const allowedTorque = CONFIG.limiter.torqueLimitFactor;
+  const allowedTorque = getAllowedTorqueFactor(true, requestedTargetRPM);
 
   model.torqueDemand = torqueDemand;
   model.torqueAvail = allowedTorque;
@@ -755,7 +815,7 @@ function calculateDemandPowerKW(model) {
 function updatePowerValues(model, isLimited) {
   model.shaftPowerKW = calculateSteadyShaftPowerKW(model);
   model.demandPowerKW = calculateDemandPowerKW(model);
-  model.allowedPowerKW = CONFIG.maxPowerKW * getAllowedTorqueFactor(isLimited);
+  model.allowedPowerKW = CONFIG.maxPowerKW * getAllowedTorqueFactor(isLimited, model.requestedTargetRPM || 0);
   model.powerDeficitKW = Math.max(0, model.demandPowerKW - model.allowedPowerKW);
   model.loadPercent = model.shaftPowerKW / CONFIG.maxPowerKW * 100;
 }
@@ -767,6 +827,12 @@ function updatePhysics(model, dt) {
   
   const acc = netForce * CONFIG.phys.massFactor;
   model.sog += acc * dt;
+
+  model.distanceTravelledM += Math.max(0, model.sog) * 0.514444 * dt;
+  if (!model.hasStopped && model.sog <= 0.1) {
+    model.hasStopped = true;
+    model.stopTimeSec = appState.elapsedSec || 0;
+  }
 }
 
 function tickShip(model, isLimited, dt) {
@@ -800,6 +866,7 @@ function tickShip(model, isLimited, dt) {
 }
 
 function simTick(dt) {
+  appState.elapsedSec = (appState.elapsedSec || 0) + dt;
   let wasLimiterActive = stateLim.limiterActive;
   let wasAlarmActive = appState.alarmActive;
 
@@ -934,10 +1001,15 @@ function updateUI() {
   document.getElementById('infoTorqDemandLim').innerText = Math.round((stateLim.torqueDemand || 0) * 100) + "%";
   document.getElementById('infoTorqAvailLim').innerText = Math.round((stateLim.torqueAvail || 0) * 100) + "%";
   document.getElementById('infoPwrDeficitLim').innerText = Math.round(stateLim.powerDeficitKW || 0) + " kW";
+  document.getElementById('infoStopDistLim').innerText = Math.round(stateLim.distanceTravelledM || 0) + " m";
+  document.getElementById('infoStopTimeLim').innerText = stateLim.stopTimeSec ? stateLim.stopTimeSec.toFixed(1) + " s" : (stateLim.sog > 0.1 ? (appState.elapsedSec||0).toFixed(1) + " s" : "0.0 s");
 
   document.getElementById('infoShaftPwrUnl').innerText = Math.round(stateUnl.shaftPowerKW || 0) + " kW";
   document.getElementById('infoDemandPwrUnl').innerText = Math.round(stateUnl.demandPowerKW || 0) + " kW";
   document.getElementById('infoTorqDemandUnl').innerText = Math.round((stateUnl.torqueDemand || 0) * 100) + "%";
+  document.getElementById('infoTorqAvailUnl').innerText = Math.round((stateUnl.torqueAvail || 0) * 100) + "%";
+  document.getElementById('infoStopDistUnl').innerText = Math.round(stateUnl.distanceTravelledM || 0) + " m";
+  document.getElementById('infoStopTimeUnl').innerText = stateUnl.stopTimeSec ? stateUnl.stopTimeSec.toFixed(1) + " s" : (stateUnl.sog > 0.1 ? (appState.elapsedSec||0).toFixed(1) + " s" : "0.0 s");
   
   // YATAY YARIŞ PİSTİ ANİMASYONLARI
   // distanceGap artık çok daha yavaş bir katsayıyla X eksenini etkiliyor.
