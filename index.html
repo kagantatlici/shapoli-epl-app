@@ -489,9 +489,9 @@ const CONFIG = {
   
   machinery: {
     aheadMaxRPM: 120,
-    asternMaxRPM: 80,
-    asternPowerFactor: 0.65,
-    asternTorqueFactor: 0.65
+    asternMaxRPM: 120,
+    asternPowerFactor: 1.0,
+    asternTorqueFactor: 1.0
   },
   
   limiter: {
@@ -511,10 +511,10 @@ const CONFIG = {
   },
 
   telegraph: [
-    { key: "FULL_ASTERN", label: "Tam Yol Tornistan", rpm: -80, index: -4, mode: "ASTERN" },
-    { key: "HALF_ASTERN", label: "Yarım Yol Tornistan", rpm: -60, index: -3, mode: "ASTERN" },
-    { key: "SLOW_ASTERN", label: "Ağır Tornistan", rpm: -40, index: -2, mode: "ASTERN" },
-    { key: "DEAD_SLOW_ASTERN", label: "Pek Ağır Tornistan", rpm: -25, index: -1, mode: "ASTERN" },
+    { key: "FULL_ASTERN", label: "Tam Yol Tornistan", rpm: -120, index: -4, mode: "ASTERN" },
+    { key: "HALF_ASTERN", label: "Yarım Yol Tornistan", rpm: -85, index: -3, mode: "ASTERN" },
+    { key: "SLOW_ASTERN", label: "Ağır Tornistan", rpm: -55, index: -2, mode: "ASTERN" },
+    { key: "DEAD_SLOW_ASTERN", label: "Pek Ağır Tornistan", rpm: -30, index: -1, mode: "ASTERN" },
     { key: "STOP", label: "Stop", rpm: 0, index: 0, mode: "STOP" },
     { key: "DEAD_SLOW", label: "Pek Ağır İleri", rpm: 30, index: 1, mode: "AHEAD" }, 
     { key: "SLOW", label: "Ağır İleri", rpm: 55, index: 2, mode: "AHEAD" },
@@ -523,9 +523,9 @@ const CONFIG = {
   ],
 
   initialStates: [
-    { key: "ASTERN", label: "Geri yol (-1 kt)", initialRPM: -10, initialSOG: -1 },
+    { key: "ASTERN", label: "Geri yol (-1 kt)", initialRPM: 0, initialSOG: -1 },
     { key: "STOP", label: "Stop (0 kt)", initialRPM: 0, initialSOG: 0 },
-    { key: "AHEAD_10", label: "İleri yol (+10 kt)", initialRPM: 100, initialSOG: 10 }
+    { key: "AHEAD_10", label: "İleri yol (+10 kt)", initialRPM: 0, initialSOG: 10 }
   ],
 };
 
@@ -736,16 +736,8 @@ function calculateTorqueDemand(model, requestedTargetRPM) {
   const targetMagnitude = Math.abs(requestedTargetRPM) / CONFIG.originalMaxRPM;
   const baseDemand = Math.pow(targetMagnitude, 2);
 
-  const isAsternCommand = requestedTargetRPM < 0;
-  const vesselStillAhead = model.sog > 0.2;
-
-  let inertiaDemand = 0;
-  if (isAsternCommand && vesselStillAhead) {
-    inertiaDemand = Math.min(0.60, model.sog / 10 * 0.60);
-  } else {
-    const lowSpeedPenalty = Math.max(0, 1 - Math.abs(model.sog) / 6);
-    inertiaDemand = lowSpeedPenalty * 0.35;
-  }
+  const lowSpeedPenalty = Math.max(0, 1 - Math.abs(model.sog) / 6);
+  const inertiaDemand = lowSpeedPenalty * 0.35;
 
   return Math.min(1.5, baseDemand + rpmDemand + inertiaDemand);
 }
@@ -759,7 +751,7 @@ function calculateEffectiveTargetRPM(model, requestedTargetRPM, isLimited) {
     return Math.min(requestedTargetRPM, CONFIG.limiter.maxRPM);
   }
   if (requestedTargetRPM < 0) {
-    return Math.max(requestedTargetRPM, -CONFIG.machinery.asternMaxRPM);
+    return Math.max(requestedTargetRPM, -CONFIG.limiter.maxRPM);
   }
   return 0;
 }
