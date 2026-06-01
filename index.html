@@ -335,6 +335,7 @@ h1 { font-size: 1.2rem; font-weight: 600; margin: 0; }
     
     <!-- LİMİTLİ (ÜST ŞERİT) -->
     <div class="lane">
+      <div class="water-flow" id="waterFlowLim"></div>
       <div class="lane-title" style="color: var(--alarm-color);">LİMİTLİ (Gerçek)</div>
       <div class="ship-wrapper" id="shipLimWrapper">
         <svg viewBox="0 0 200 100" class="ship-svg">
@@ -354,6 +355,7 @@ h1 { font-size: 1.2rem; font-weight: 600; margin: 0; }
 
     <!-- LİMİTSİZ (ALT ŞERİT) -->
     <div class="lane">
+      <div class="water-flow" id="waterFlowUnl"></div>
       <div class="lane-title" style="color: var(--text-muted);">LİMİTSİZ (Referans)</div>
       <div class="ship-wrapper" id="shipUnlWrapper">
         <svg viewBox="0 0 200 100" class="ship-svg" style="opacity: 0.4;">
@@ -503,6 +505,7 @@ const CONFIG = {
   },
 
   phys: {
+    shipLengthMeters: 6.0,
     thrustK: 1.0,    
     dragK: 100.0,    // 120^2 / 12^2 = 14400 / 144 = 100 
     massFactor: 0.00003, 
@@ -559,6 +562,8 @@ class ShipModel {
     this.torqueAvail = 1;
     this.limiterActive = false;
     this.distanceTravelledM = 0;
+    this.distanceShipLengths = 0;
+    this.visualOffsetShipLengths = 0;
     this.stopTimeSec = null;
     this.hasStopped = false;
   }
@@ -583,8 +588,8 @@ function setInitialState(key) {
   stateLim.reset(st.initialRPM, st.initialSOG);
   stateUnl.reset(st.initialRPM, st.initialSOG);
   
-  stateLim.hasStopped = (st.initialSOG <= 0.1);
-  stateUnl.hasStopped = (st.initialSOG <= 0.1);
+  stateLim.hasStopped = (Math.abs(st.initialSOG) <= 0.1);
+  stateUnl.hasStopped = (Math.abs(st.initialSOG) <= 0.1);
   
   appState.telegraphKeyLim = "STOP";
   appState.telegraphKeyUnl = "STOP";
@@ -610,6 +615,8 @@ function resetScenario() {
   appState.distanceGap = 0;
   stateUnl.reset(stateLim.actualRPM, stateLim.sog);
   stateUnl.distanceTravelledM = stateLim.distanceTravelledM;
+  stateUnl.distanceShipLengths = stateLim.distanceShipLengths;
+  stateUnl.visualOffsetShipLengths = stateLim.visualOffsetShipLengths;
   stateUnl.hasStopped = stateLim.hasStopped;
   document.getElementById('btnOverride').disabled = false;
   updateOverrideUI();
@@ -817,7 +824,7 @@ function updatePowerValues(model, isLimited) {
   model.loadPercent = model.shaftPowerKW / CONFIG.maxPowerKW * 100;
 }
 
-function updatePhysics(model, dt) {
+function updatePhysics(model, isLimited, dt) {
   const thrust = model.actualRPM * Math.abs(model.actualRPM) * CONFIG.phys.thrustK;
   const drag = model.sog * Math.abs(model.sog) * CONFIG.phys.dragK;
   const netForce = thrust - drag;
@@ -825,8 +832,12 @@ function updatePhysics(model, dt) {
   const acc = netForce * CONFIG.phys.massFactor;
   model.sog += acc * dt;
 
-  model.distanceTravelledM += Math.max(0, model.sog) * 0.514444 * dt;
-  if (!model.hasStopped && model.sog <= 0.1) {
+  model.distanceTravelledM += model.sog * 0.514444 * dt;
+  model.distanceShipLengths = model.distanceTravelledM / CONFIG.phys.shipLengthMeters;
+  const visualGain = (isLimited && appState.systemType !== "STANDALONE") ? 1.25 : 1.0;
+  model.visualOffsetShipLengths = model.distanceShipLengths * visualGain;
+
+  if (!model.hasStopped && model.sog <= 0.1 && model.distanceTravelledM > 0) {
     model.hasStopped = true;
     model.stopTimeSec = appState.elapsedSec || 0;
   }
@@ -858,7 +869,7 @@ function tickShip(model, isLimited, dt) {
     model.actualRPM += Math.sign(rpmDiff) * step;
   }
 
-  updatePhysics(model, dt);
+  updatePhysics(model, isLimited, dt);
   updatePowerValues(model, isLimited);
 }
 
@@ -898,8 +909,6 @@ function simTick(dt) {
           updateOverrideUI();
       }
   }
-
-  appState.distanceGap += (stateUnl.sog - stateLim.sog) * dt;
 }
 
 function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
@@ -1009,18 +1018,27 @@ function updateUI() {
   document.getElementById('infoStopTimeUnl').innerText = stateUnl.stopTimeSec ? stateUnl.stopTimeSec.toFixed(1) + " s" : (stateUnl.sog > 0.1 ? (appState.elapsedSec||0).toFixed(1) + " s" : "0.0 s");
   
   // YATAY YARIŞ PİSTİ ANİMASYONLARI
-  // distanceGap artık çok daha yavaş bir katsayıyla X eksenini etkiliyor.
-  const visualGap = appState.distanceGap * 3; 
-  const wrapperLim = document.getElementById('shipLimWrapper');
-  
-  if (appState.systemType !== "STANDALONE" && !appState.overrideActive && appState.distanceGap > 0) {
-      wrapperLim.style.left = `calc(50% - ${visualGap}px)`;
-  } else {
-      appState.distanceGap *= 0.98;
-      wrapperLim.style.left = `calc(50% - ${visualGap}px)`;
+  const pixelsPerShipLength = 15; // Görsel katsayı
+
+  function calculateBandTransform(vessel) {
+    return `translate(calc(-50% + ${vessel.visualOffsetShipLengths * pixelsPerShipLength}px), -50%)`;
   }
 
-  // Pervane animasyonu oldukça yavaşlatıldı (0.05)
+  function getDirectionClass(speedKts) {
+    if (speedKts > 0.05) return "moving-ahead";
+    if (speedKts < -0.05) return "moving-astern";
+    return "stopped";
+  }
+
+  const wrapperLim = document.getElementById('shipLimWrapper');
+  wrapperLim.style.transform = calculateBandTransform(stateLim);
+  wrapperLim.className = "ship-wrapper " + getDirectionClass(stateLim.sog);
+
+  const wrapperUnl = document.getElementById('shipUnlWrapper');
+  wrapperUnl.style.transform = calculateBandTransform(stateUnl);
+  wrapperUnl.className = "ship-wrapper " + getDirectionClass(stateUnl.sog);
+
+  // Pervane animasyonu
   const propLim = document.getElementById('propellerLim');
   const curRotLim = parseFloat(propLim.dataset.rot || 0) + (stateLim.actualRPM * 0.05); 
   propLim.dataset.rot = curRotLim;
@@ -1034,15 +1052,6 @@ function updateUI() {
   // Geminin üstüne yazılan kocaman hız etiketleri
   document.getElementById('badgeSogLim').innerText = stateLim.sog.toFixed(1) + " kt";
   document.getElementById('badgeSogUnl').innerText = stateUnl.sog.toFixed(1) + " kt";
-
-  // Su akışı
-  const water = document.getElementById('waterFlow');
-  const curPos = parseFloat(water.dataset.pos || 0);
-  const avgSog = (stateLim.sog + stateUnl.sog) / 2;
-  // Sağa doğru giderlerken suyun sola akması
-  const newPos = curPos - (avgSog * 0.2);
-  water.dataset.pos = newPos;
-  water.style.backgroundPosition = `${newPos}px 0px`;
 }
 
 function renderTelegraph() {
